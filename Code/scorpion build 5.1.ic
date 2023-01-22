@@ -1,0 +1,729 @@
+/*
+//motor 1 is left
+//motor 2 is right
+CHANGE CASE BACK TO ZERO
+CHANGE SELECTION BACK TO ZERO!
+recheck every reset value! 
+set reset values in risky!
+set reset value to get center cheese after full risky run!
+check for similarities between risky and safe!
+
+*/
+int TRIGGER=0, SPEEDL=70, SPEEDR=70, CASE=1, PING=0;
+float TIME_LEFT=120.0;
+//RAISE CHEESE SWIPER COMMAND
+void rise(){
+    if(!TRIGGER)
+      return;    
+    set_digital_out(6);
+    msleep(1600L);
+    if(!TRIGGER){
+        CASE=-1;
+        return;
+    }
+    clear_digital_out(6);
+    msleep(500L);
+    return;
+}
+//GO FORWARD A CERTAIN COUNT COMMAND
+void forward(int countgoal){
+    int count=0;
+    if(!TRIGGER)
+      return;
+    reset();    
+    while(TRIGGER && (count<countgoal)){
+        count=read_encoder(1);        
+        yip(1,SPEEDR);
+        yip(2,SPEEDL);
+    }
+    stop();
+    return;    
+}
+//WALL FOLLOWING COMMAND
+void wallfollow(int side,int countgoal, int dist, float Kp){
+    //LEFT=0
+    //RIGHT=1
+    int error, data=1, count;
+    float P;
+    if(!TRIGGER)
+      return;
+    reset();
+    yip(1,SPEEDL);
+    yip(2,SPEEDR);
+    msleep(250L);
+    if(side){//RIGHT WALL SENSOR
+        while(TRIGGER){
+            count=read_encoder(1);
+            error=dist-analog(19);
+            P=Kp*(float)error;
+            yip(1,(SPEEDL+(int)(P)));
+            yip(2,(SPEEDR-(int)(P)));    
+            if(count>=countgoal)
+              break;
+            msleep(500L);
+        }
+    }
+    else{//LEFT WALL SENSOR
+        while(TRIGGER){
+            count=read_encoder(1);
+            error=dist-analog(20);
+            P=Kp*(float)error;
+            yip(1,(SPEEDL-(int)(P)));
+            yip(2,(SPEEDR+(int)(P)));    
+            if(count>=countgoal){
+                stop();
+                return;
+            }
+            msleep(500L);
+        }
+    }
+    return;
+}
+//chill out command
+int chill_out(){
+    if(!TRIGGER)
+      return 0;
+    CASE=9;
+    TIME_LEFT=TIME_LEFT-seconds();
+    reset_system_time();
+    while(TRIGGER && TIME_LEFT>=15.0){
+        TIME_LEFT=TIME_LEFT-seconds();
+        reset_system_time();
+        msleep(100L);
+    }
+    if(!TRIGGER)
+      return 0;
+    tone(100.0,0.75);
+    tone(160.0,0.75);
+    tone(135.0,0.75);    
+    while(TRIGGER && TIME_LEFT>0.0){
+        TIME_LEFT=TIME_LEFT-seconds();
+        reset_system_time();
+        msleep(100L);
+    }
+    if(!TRIGGER)
+      return 0;
+    TRIGGER=0;
+    return 1;
+}
+//FUNCTION FOR AFTER CHEESE SHOULD HAVE BENE DUMPED TO PROTECT CHEESE
+void post_dump(){
+    if(!TRIGGER)
+      return;
+    yip(1,-60);
+    yip(2,-60);
+    msleep(500L);
+    if(!TRIGGER)
+      return;
+    turn(1,5);
+    stop();
+    msleep(750L);
+    CASE=9;
+    return;
+}
+/****************************** TURNING FUNCTIONS ******************************************************************/
+//turn command
+void turn(int dir, int countgoal){
+    //dir = 0, TURN LEFT    
+    //dir = 1, TURN RIGHT
+    int count=0;
+    if(!TRIGGER)
+      return;
+    stop();
+    reset();
+    if(dir){
+        yip(1,70);
+        yip(2,-70);
+        while(count<countgoal && TRIGGER)
+          count=read_encoder(1);
+        stop();
+    }
+    else{
+        yip(1,-70);   
+        yip(2,70);
+        while(count<countgoal && TRIGGER)
+          count=read_encoder(1);
+        stop();
+    }
+    return;
+}
+/****************************** UERLYING FUNCTIONS *****************************************************************/
+//KILLSWITCH FUNCTION
+void killswitch(){
+    while (1){
+        if (digital(11)||digital(12)){
+            alloff();
+            clear_digital_out(6);
+            TRIGGER=0;
+        }
+    }
+}
+//RESETTING FUNCTION
+void reset(){
+    if(!TRIGGER)
+      return;
+    reset_encoder(0);
+    reset_encoder(1);
+}
+//MOTOR DRIVING COMMANDS
+void yip(int a, int b){
+    if(!TRIGGER)
+      return;
+    if(a == 1){//LEFT MOTOR
+        motor(0,b);
+        motor(1,b);
+    }
+    if(a == 2){//RIGHT MOTOR
+        motor(2,b);
+        motor(3,b);
+    }
+}   
+//STOP FUNCTION
+void stop(){
+    alloff();
+}
+//ABSOLUTE FUNCTION
+int abs(int a){
+    if (a>0)
+      return a;
+    else
+      return (a*-1);
+}
+//REST FUNCTION (NOT CURRENTLY USED)
+void rest(){
+    if(!TRIGGER)
+      return;
+    alloff();
+    msleep(15000L);    
+}
+/****************************** SAFE FUNCTION **********************************************************************/
+int safe(){
+    int bump=0;
+    while(TRIGGER){            
+        switch(CASE){
+            case 0:{
+                //RAISE CHEESE RAKE
+                rise();
+                break;
+            }
+            case 1:{
+                //HEAD CLOCKWISE AROUND BOARD TO GET CHEESE 1 FOLLOWED BY CHEESE 2, THEN 3
+                //ASSUME ROBOT FACES LEFT
+                turn(1,3);
+                forward(25);
+                turn(1,3);
+                //IF RESET, SENDS BACK TO THIS CASE
+                if(!TRIGGER){
+                    CASE=0;
+                    break;
+                }
+                //WALL FOLLOWS TO GET CHEESE 1
+                wallfollow(0,20,60,3.0);
+                //TURNS TO START ACROSS LEG (CASE 2, CHEESE 1 OBTAINED)
+                turn(1,9);
+                //IF RESET HERE, JUST GO FOR OTHER SIDE FOR CHEESE 3 THEN 2
+                //PING MEANS CHEESE 2 WAS NOT OBTAINED
+                if(!TRIGGER){
+                    CASE=3;
+                    PING=1;
+                }                          
+                break;
+            }
+            case 2:{
+                //CONTINUE CLOCKWISE AROUND BOARD TO GET CHEESE 2 AND 3
+                wallfollow(1,12,23,14.0);
+                forward(6);
+                //CHEESE 2 SHOULD HAVE BEEN OBTAINED BY THIS POINT
+                //IF RESET HERE, JUST GO FOR OTHER SIDE FOR CHEESE 3, THEN 2
+                if(!TRIGGER){
+                    CASE=3;
+                    PING=1;
+                    break;
+                }
+                //THIS IS JUST A CORRECTIONAL TURN
+                turn(0,1);
+                /*stop();
+                            msleep(2000L);*/
+                //THIS PUTS ROBOT IN VICINITY FOR CHEESE THREE, SOMETIMES OBTAINING IT
+                //BUT NOT FOR SURE
+                forward(18);                            
+                //IF RESET HERE, ONLY NEED TO GET CHEESE 3
+                if(!TRIGGER)
+                  CASE=3;
+                break;
+            }
+            case 3:{
+                //CONTINUE CLOCKWISE AROUND BOARD TO GET CHEESE 3 AND RETURN 
+                //TURN TO FACE FINAL WALL
+                turn(1,7);
+                //IF RESET HERE, STILL NEED TO GET CHEESE 3
+                if(!TRIGGER){
+                    CASE=3;
+                    break;
+                }                            
+                //CHEESE 3 SHOULD HAVE BEEN OBTAINED AT THIS POINT
+                //HEAD DOWN WALL
+                forward(5);                            
+                wallfollow(0,6,51,3.0);
+                //RAM FORWARD TO DUMP OFF BASKET
+                forward(50);
+                //GUARD CHEESE FUNCTION
+                post_dump();
+                //IF RESET NOW, JUST RE-DUMP TO ENSURE CHEESE IS OFF AND MADE IT
+                bump=chill_out();
+                CASE=9;
+                break;
+            }
+            case 4:{
+                /***************************DOUBLE CHECK - FUNCTIONALITY PROVEN W/ PING=0&1***********************///////////
+                //CHEESE 1 OBTAINED, CHEESE 3 AND POTENTIALLY 2 ARE NOT OBTAINED
+                //ASSUMES ROBOT FACES RIGHT
+                //HEATS FOR CHEESE
+                turn(0,3);
+                forward(25);
+                turn(0,3);
+                //IF RESET HERE, NEITHER CHEESE 3 OR 2 WERE OBTAINED, RESET TO HERE
+                if(!TRIGGER){
+                    CASE=3;
+                    break;
+                }
+                //FUNCTION TAKES IT TO CHEESE 3
+                wallfollow(1,9,60,3.0);
+                forward(12);
+                //IF PING=0, CHEESE 2 WAS OBTAINED. 
+                //IF PING=1, CHEESE 2 WAS NOT OBTAINED
+                if(PING){                                
+                    if(!TRIGGER){
+                        CASE=3;
+                        break;                      
+                    }
+                    turn(0,9);
+                    //CHEESE 3 SHOULD HAVE BEEN OBTAINED BY HERE
+                    //HEAD TO CHEESE 2
+                    forward(12);//wallfollow(0,12,23,14.0);                              
+                    forward(6);
+                    turn(1,1);
+                    forward(6);
+                    if(!TRIGGER){
+                        CASE=4;
+                        break;                      
+                    }
+                    //CHEESE 2 SHOULD HAVE BEEN OBTAINED BY HERE
+                    //TURN LEFT 90 TO HEAD HOME
+                    turn(0,7);
+                    //GO HOME AND DUMP
+                    wallfollow(0,9,31,7.0);
+                    forward(50);
+                    //GUARD CHEESE
+                    post_dump();
+                    bump=chill_out();
+                    //IF RESET HERE, ALL CHEESE OBTAINED, JUST NEED TO DUMP
+                    if(!TRIGGER){
+                        CASE=9;
+                        break;                      
+                    }
+                }
+                else{
+                    //CHEESE 2 WAS PREVIOUSLY OBTAINED, CHEESE 3 JUST GOT OBTAINED
+                    //U TURN TO HEAD HOME
+                    turn(1,14);
+                    //WALLFOLLOW HOME
+                    wallfollow(0,9,51,3.0);
+                    //RAM WALL TO DUMP CHEESE
+                    forward(50);
+                    //GUARD CHEESE
+                    post_dump();
+                    //IF RESET HERE, JUST DUMP CHEESE
+                    bump=chill_out();
+                    CASE=9;                                                   
+                }                                                       
+                break;
+            }
+            case 5:{
+                /***************************DOUBLE CHECK - FUNCTIONALITY PROVEN!!!!!!!!***********************///////////                           //CHEESE 1 AND 3 WAS OBTAINED, JUST ATTEMPT TO GET CHEESE 2
+                //ASSUME CAR FACING FORWARD
+                //WALL FOLLOW STRAIT TO GET CHEESE
+                wallfollow(0,19,31,7.0);
+                forward(19);
+                //IF RESET HERE, CHEESE 2 WAS NOT OBTAINED, TRY AGAIN
+                if(!TRIGGER){
+                    CASE=4;
+                    break;                                
+                }
+                //CHEESE 2 WAS OBTAINED AT THIS POINT
+                //UTURN TO HEAD HOME
+                turn(0,14);
+                //WALLFOLLOW HOME
+                wallfollow(0,6,31,7.0);
+                forward(50);
+                //GUARD CHEESE
+                post_dump();
+                bump=chill_out();
+                break;                           
+            }
+            default:{
+                //CAR HAS ALL CHEESE AND WILL JUST RE-DUMP CHEESE TO ENSURE CHEESE WAS DUMPED
+                forward(14);
+                //GUARD CHEESE
+                post_dump();
+                bump=chill_out();
+                break;
+            }
+        }
+        //CASE ADVANCES, HOW CASE WORKS
+        CASE=CASE+1;
+        //THIS KEEPS TRACK OF HOW MUCH TIME LEFT
+        TIME_LEFT=TIME_LEFT-seconds();
+        reset_system_time();
+        //IF THERE IS LESS THAN 15 SECONDS, JUST DUMP WHATEVER CHEESE YOU HAVE
+        if(TIME_LEFT<=15.0)         
+            CASE=9;        
+    }
+    return bump;
+}
+/****************************** RISKY FUNCTION **********************************************************************/
+int risky(){
+    int bump=0;
+    while(TRIGGER){            
+        switch(CASE){
+            case 0:{
+                //RAISE CHEESE RAKE
+                rise();
+                break;
+            }
+            case 1:{
+                //HEAD CLOCKWISE AROUND BOARD TO GET CHEESE 1 FOLLOWED BY CHEESE 2, THEN 3
+                //ASSUME ROBOT FACES LEFT
+                turn(1,3);
+                forward(25);
+                turn(1,3);
+                //IF RESET, SENDS BACK TO THIS CASE
+                if(!TRIGGER){
+                    CASE=0;
+                    break;
+                }
+                //WALL FOLLOWS TO GET CHEESE 1
+                wallfollow(0,20,60,4.0);
+                forward(6);
+                turn(0,1);
+                forward(6);
+                wallfollow(1,25,100,1.5);
+                wallfollow(0,43,60,4.0);                           
+
+
+                if(!TRIGGER){
+                    CASE=3;                                
+                }                          
+                break;
+            }
+            case 2:{
+                turn(1,7);
+
+                forward(18);
+                //wallfollow(0,9,23,14.0);                            
+
+
+                if(!TRIGGER){
+                    CASE=3;
+                    break;
+                }
+                //THIS IS JUST A CORRECTIONAL TURN
+                turn(0,1);
+                /*stop();
+                            msleep(2000L);*/
+                //THIS PUTS ROBOT IN VICINITY FOR CHEESE THREE, SOMETIMES OBTAINING IT
+                //BUT NOT FOR SURE
+                forward(15);                            
+                //IF RESET HERE, ONLY NEED TO GET CHEESE 3
+                if(!TRIGGER)
+                  CASE=3;
+                break;
+            }
+            case 3:{
+                //CONTINUE CLOCKWISE AROUND BOARD TO GET CHEESE 3 AND RETURN 
+                //TURN TO FACE FINAL WALL
+                turn(1,7);
+                //IF RESET HERE, STILL NEED TO GET CHEESE 3
+                if(!TRIGGER){
+                    CASE=3;
+                    break;
+                }                            
+                //CHEESE 3 SHOULD HAVE BEEN OBTAINED AT THIS POINT
+                //HEAD DOWN WALL
+                //forward(5);
+                wallfollow(0,15,70,2.8);
+                wallfollow(1,28,110,1.5);
+                stop();
+                msleep(1000L);
+                forward(7);
+                wallfollow(0,10,65,3.0);
+                forward(8);
+                stop();
+                msleep(1000L);
+                wallfollow(0,10,65,3.0);
+                forward(10);
+                stop();
+                msleep(1000L);
+                turn(1,3);
+                forward(15);
+                turn(0,3);
+
+                forward(50);
+                stop();
+                msleep(1000L);
+                //RAM FORWARD TO DUMP OFF BASKET
+                //forward(50);
+                //GUARD CHEESE FUNCTION
+                post_dump();
+                if(!TRIGGER){
+                    CASE=3;
+                    break;
+                }
+                //IF RESET NOW, JUST RE-DUMP TO ENSURE CHEESE IS OFF AND MADE IT
+                bump=chill_out();
+                CASE=9;
+                break;
+            }
+            case 4:{
+                /***************************DOUBLE CHECK - FUNCTIONALITY PROVEN W/ PING=0&1***********************///////////
+                //CHEESE 1 OBTAINED, CHEESE 3 AND POTENTIALLY 2 ARE NOT OBTAINED
+                //ASSUMES ROBOT FACES RIGHT
+                //HEATS FOR CHEESE
+                turn(0,3);
+                forward(25);
+                turn(0,3);
+                //IF RESET HERE, NEITHER CHEESE 3 OR 2 WERE OBTAINED, RESET TO HERE
+                if(!TRIGGER){
+                    CASE=3;
+                    break;
+                }
+                //FUNCTION TAKES IT TO CHEESE 3
+                wallfollow(1,9,60,3.0);
+                forward(12);
+                //IF PING=0, CHEESE 2 WAS OBTAINED. 
+                //IF PING=1, CHEESE 2 WAS NOT OBTAINED
+                
+                if(!TRIGGER){
+                    CASE=3;
+                    break;                      
+                }
+                turn(0,9);
+                //CHEESE 3 SHOULD HAVE BEEN OBTAINED BY HERE
+                //HEAD TO CHEESE 2
+                wallfollow(0,12,23,14.0);                              
+                forward(6);
+                //turn(1,1);
+                forward(6);
+                if(!TRIGGER){
+                    CASE=4;
+                    break;                      
+                }
+                //CHEESE 2 SHOULD HAVE BEEN OBTAINED BY HERE
+                //TURN LEFT 90 TO HEAD HOME
+                turn(0,7);
+                //GO HOME AND DUMP
+                wallfollow(0,11,31,7.0);
+                forward(50);
+                //GUARD CHEESE
+                post_dump();
+                bump=chill_out();
+                //IF RESET HERE, ALL CHEESE OBTAINED, JUST NEED TO DUMP
+                if(!TRIGGER){
+                    CASE=9;
+                    break;                      
+                }                                                                               
+                break;
+            }
+            case 5:{
+                /***************************DOUBLE CHECK - FUNCTIONALITY PROVEN!!!!!!!!***********************///////////                           //CHEESE 1 AND 3 WAS OBTAINED, JUST ATTEMPT TO GET CHEESE 2
+                //ASSUME CAR FACING FORWARD
+                //WALL FOLLOW STRAIT TO GET CHEESE
+                wallfollow(0,19,31,7.0);
+                forward(19);
+                //IF RESET HERE, CHEESE 2 WAS NOT OBTAINED, TRY AGAIN
+                if(!TRIGGER){
+                    CASE=4;
+                    break;                                
+                }
+                //CHEESE 2 WAS OBTAINED AT THIS POINT
+                //UTURN TO HEAD HOME
+                turn(0,14);
+                //WALLFOLLOW HOME
+                wallfollow(0,9,31,7.0);
+                forward(50);
+                //GUARD CHEESE
+                post_dump();
+                bump=chill_out();
+                break;                           
+            }
+            default:{
+                //CAR HAS ALL CHEESE AND WILL JUST RE-DUMP CHEESE TO ENSURE CHEESE WAS DUMPED
+                forward(14);
+                //GUARD CHEESE
+                post_dump();
+                bump=chill_out();
+                break;
+            }
+        }
+        //CASE ADVANCES, HOW CASE WORKS
+        CASE=CASE+1;
+        //THIS KEEPS TRACK OF HOW MUCH TIME LEFT
+        TIME_LEFT=TIME_LEFT-seconds();
+        reset_system_time();
+        //IF THERE IS LESS THAN 15 SECONDS, JUST DUMP WHATEVER CHEESE YOU HAVE
+        if(TIME_LEFT<=15.0)
+          CASE=9;
+    }    
+    return bump;
+}
+/****************************** MAIN FUNCTION **********************************************************************/
+void main(){
+    int bump=0,select=1;
+    start_process(killswitch());
+    msleep(1500L);
+    enable_encoder(0);
+    enable_encoder(1);
+    while(1){
+        if(start_button()){
+            msleep(1000L);
+            while(1){                
+                if(start_button() || (analog(22)<150)){
+                    TRIGGER=1;
+                    reset_system_time();
+                }
+                if(TRIGGER){
+                    if(!select)
+                      bump=safe();
+                    else
+                      bump=risky();
+                }
+                if(bump)
+                  break;
+                //BEEP FUNCTION TO TELL USER WHICH WAY TO FACE ROBOT
+                //ONE BEEP MEANS FACE LEFT
+                //TWO BEEPS MEANS FACE RIGHT
+                //THREE BEEPS MEANS FACE CENTER
+                //LOW PITCH BEEP MEANS FACE WALL
+                if(stop_button()){
+                    if(digital(11)){
+                        switch(CASE){
+                            case 0:{
+                                tone(40.0,0.7);
+                                break;                           
+                            }
+                            case 1:{
+                                CASE=9;
+                                break;
+                            }
+                            case 4:{
+                                CASE=5;
+                                break;
+                            }
+                            case 5:{
+                                CASE=1;
+                                break;
+                            }
+                            default:{
+                                CASE=4;
+                                break;
+                            }                       
+                        }
+                    }
+                    if(digital(12)){
+                        switch(CASE){
+                            case 0:{
+                                tone(40.0,0.7);
+                                break;
+                            }
+                            case 1:{
+                                CASE=5;
+                                break;
+                            }
+                            case 4:{
+                                CASE=9;
+                                break;                            
+                            }
+                            case 5:{
+                                CASE=4;
+                                break;
+                            }
+                            default:{
+                                CASE=1;
+                                break;
+                            }                        
+                        }
+                    }
+                }
+                switch(CASE){
+                    case 0:{//FACE ROBOT LEFT
+                        beep();
+                        msleep(500L);
+                        break;
+                    }
+                    case 1:{//FACE ROBOT LEFT
+                        beep();
+                        msleep(500L);
+                        break;
+                    }
+                    case 4:{//FACE ROBOT RIGHT
+                        beep();
+                        beep();
+                        msleep(500L);
+                        break;
+                    }    
+                    case 5:{//FACE ROBOT CENTER
+                        beep();
+                        beep();
+                        beep();
+                        msleep(500L);
+                        break;
+                    }
+                    default://FACE ROBOT AT WALL
+                      tone(60.0,0.7);
+                    break;
+                }
+                printf("%d %f\n",CASE, TIME_LEFT);
+            }
+        }
+        if(stop_button()){
+            while(1){
+                if(select==0){
+                    tone(100.0,0.6);
+                    msleep(750L);
+                }
+                else{                    
+                    tone(140.0,0.6);
+                    msleep(750L);
+                }
+                msleep(750L);
+                if(digital(12) || digital(11)){
+                    tone(60.0,0.7);
+                    if(select==0){
+                        select=1;                        
+                        tone(140.0,1.0);
+                        msleep(1000L);
+                    }
+                    else{
+                        select=0;
+                        tone(100.0,1.0);
+                        msleep(1000L);
+                    }
+                    
+                }
+                if(stop_button()){
+                    select=0;
+                    tone(420.0,0.7);
+                    tone(220.0,0.7);
+                    msleep(1000L);
+                    break;
+                }
+                if(start_button()){
+                    tone(220.0,0.7);
+                    tone(420.0,0.7);
+                    msleep(1000L);
+                    break;
+                }
+            }            
+        }         
+    }
+}  

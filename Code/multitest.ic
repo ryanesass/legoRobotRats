@@ -1,0 +1,40 @@
+int speed=75,speed2=-75,trigger=0;
+
+void killswitch(){
+    while (1){
+        if (digital(11)){
+          alloff();
+        trigger=0;}
+    }
+}
+void main(){
+    start_process(killswitch());
+    while(1){
+        if (start_button()){
+            trigger=1;
+            motor(0,-speed);
+            motor(1,-speed);
+            motor(2,speed2);
+            motor(3,speed2);
+              
+        }
+        if (digital(9)){
+            if (speed==75){
+                speed=0;            
+                speed2=-75;
+            }
+            else{
+                speed=75;
+                speed2=0;
+            }
+        }
+        if (trigger){
+            motor(0,-speed);
+            motor(1,-speed);
+            motor(2,speed2);
+            motor(3,speed2);
+            
+        }
+
+    }
+}

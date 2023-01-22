@@ -1,0 +1,9 @@
+   void main(){
+    int data;
+    while(1){
+        data=analog(19);
+        printf("%d\n",data);
+        msleep(500L);
+    }
+    return;
+}

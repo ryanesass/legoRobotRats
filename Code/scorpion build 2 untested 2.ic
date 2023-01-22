@@ -1,0 +1,298 @@
+int TRIGGER=0, SPEEDL=70, SPEEDR=70;
+//motor 1 is left
+//motor 2 is right 
+/*
+NEED OVERCOMPENSATING TURN FOR L TO RIGHT SENSOR WALL
+
+
+*/
+void rise(){
+    if(!TRIGGER)
+      return;
+    
+    
+    set_digital_out(6);
+    msleep(1600L);
+    clear_digital_out(6);
+    if(!TRIGGER)
+      return;
+    servo1=3600;
+    msleep(1000L);
+    init_expbd_servos(0);
+    return;
+}
+void forward(int countgoal){
+    int count=0;
+    if(!TRIGGER)
+      return;
+    reset();    
+    while(TRIGGER && (count<countgoal)){
+        count=read_encoder(1);        
+        yip(1,SPEEDR);
+        yip(2,SPEEDL);
+    }
+    if(!TRIGGER)
+      return;
+    stop();    
+}
+int forwardw(){
+    int trip=0;
+    reset();
+    if(!TRIGGER)
+      return 0;    
+    while(TRIGGER){
+        if(analog(2)>90 || analog(2)<73){
+            trip=1;
+            msleep(1000L);
+            break;
+        }
+        yip(1,SPEEDR);
+        yip(2,SPEEDL);
+        if(seconds()>10.0)
+          break;
+    }
+    if(!TRIGGER)
+      return 0;
+    stop();
+    return trip;   
+}
+//WALL FOLLOWING COMMAND
+void wallfollow(int countgoal,int side, int dist){
+    int error, data=1, count;
+    float P,Kp;
+    if(!TRIGGER)
+      return;
+    reset();
+    yip(1,SPEEDL);
+    yip(2,SPEEDR);
+    msleep(250L);
+    if(side){//right side reader
+        Kp=14.0;
+        while(TRIGGER){
+            count=read_encoder(1);
+            error=dist-analog(19);
+            P=Kp*(float)error;
+            yip(1,(SPEEDL+(int)(P)));
+            yip(2,(SPEEDR-(int)(P)));    
+            if(count>=countgoal)
+              break;
+            msleep(500L);
+        }
+    }
+    else{//left side reader
+        Kp=3.0;
+        while(TRIGGER){
+            count=read_encoder(1);
+            error=dist-analog(20);
+            P=Kp*(float)error;
+            yip(1,(SPEEDL-(int)(P)));
+            yip(2,(SPEEDR+(int)(P)));    
+            if(count>=countgoal){
+                stop();
+                return;
+            }
+            msleep(500L);
+        }
+    }
+    return;
+}
+//FUNCTION FOR WHEN ITS TIME TO DUMP THE CHEESE
+void dumping_time(){
+    int error, data=1, wall, trip=0, count=0, x;
+    float P,Kp=1.1;
+    if(!TRIGGER)
+      return;
+    reset();
+    trip=forwardw();
+    //stop and settle things
+    msleep(750L);
+    //if tripped sensor thingy, dump
+    if(trip && TRIGGER){     
+        msleep(1000L);
+        //back up from the wall
+        if(TRIGGER){
+            yip(1,-60);
+            yip(2,-60);
+            msleep(500L);
+            turnr4();
+        }
+    }
+    stop();
+    TRIGGER=0;
+    return;
+}
+/****************************** TURNING FUNCTIONS ******************************************************************/
+//turn command
+void turn(int dir, int countgoal){
+    //dir = 1, turn r
+    //dir = 0, turn l
+    int count=0;
+    if(!TRIGGER)
+      return;
+    stop();
+    reset();
+    if(dir){
+        yip(1,70);
+        yip(2,-70);
+        while(count<countgoal && TRIGGER)
+          count=read_encoder(1);
+        stop();
+    }
+    else{
+        yip(1,-70);   
+        yip(2,70);
+        while(count<countgoal && TRIGGER)
+          count=read_encoder(1);
+        stop();
+    }
+    return;
+}
+// 1/4 TURN RIGHT FUNCTION
+void turnr4(){
+    int count=0;
+    if(!TRIGGER)
+      return;
+    stop();
+    reset();
+    yip(1,70);
+    yip(2,-70);
+    while(count<7 && TRIGGER){
+        count=read_encoder(1);
+    }
+    stop();
+}
+// 1/8 TURN RIGHT FUNCTION
+void turnr8(){
+    int count=0;
+    if(!TRIGGER)
+      return;
+    stop();
+    reset();
+    yip(1,70);
+    yip(2,-70);
+    while(count<3 && TRIGGER){
+        count=read_encoder(1);
+    }
+    stop();
+}
+// OVERTURN RIGHT FUNCTION
+void overturnr(int countgoal){
+    int count=0;
+    if(!TRIGGER)
+      return;
+    stop();
+    reset();
+    yip(1,70);
+    yip(2,-70);
+    while(count<countgoal && TRIGGER){
+        count=read_encoder(1);
+    }
+    stop();
+}
+
+//1/8 TURN LEFT FUNCTION
+void turnl8(){
+    int count=0;
+    if(!TRIGGER)
+      return;
+    stop();
+    reset();
+    yip(1,-70);
+    yip(2,70);
+    while(count<4 && TRIGGER){
+        count=read_encoder(1);
+    }
+    stop();
+}
+/****************************** UERLYING FUNCTIONS *****************************************************************/
+//KILLSWITCH FUNCTION
+void killswitch(){
+    while (1){
+        if (digital(11)||digital(12)){
+            alloff();
+            clear_digital_out(6);
+            TRIGGER=0;
+        }
+    }
+}
+//RESETTING FUNCTION
+void reset(){
+    reset_encoder(0);
+    reset_encoder(1);
+    reset_system_time();    
+}
+//MOTOR DRIVING COMMANDS
+void yip(int a, int b){
+    if(a == 1){//left motor
+        motor(0,b);
+        motor(1,b);
+    }
+    if(a == 2){//right motor
+        motor(2,b);
+        motor(3,b);
+    }
+}   
+//STOP FUNCTION
+void stop(){
+    alloff();
+}
+//ABSOLUTE FUNCTION
+int abs(int a){
+    if (a>0)
+      return a;
+    else
+      return (a*-1);
+}
+//REST FUNCTION (NOT CURRENTLY USED)
+void rest(){
+    if(!TRIGGER)
+      return;
+    alloff();
+    msleep(15000L);    
+}
+/****************************** MAIN FUNCTION **********************************************************************/
+void main(){
+    start_process(killswitch());
+    msleep(1500L);
+    enable_encoder(0);
+    enable_encoder(1);
+    while(1){
+        if(start_button() )//|| (analog(22)<150))
+          TRIGGER=1;
+        while(TRIGGER){            
+            //raise cheese swiper
+            //rise();
+//left leg
+            turn(1,3);
+            forward(25);
+            turn(1,3);
+            wallfollow(20,0,60);    
+//across leg
+            turn(1,9);
+            wallfollow(12,1,23);
+            forward(6);
+            turn(0,1);
+            forward(18);
+//back leg
+            turn(1,7);
+            forward(5);
+            wallfollow(13,0,51);
+            stop();
+            msleep(1500L);
+            //need special forward here
+            forward(50);
+             yip(1,-60);
+            yip(2,-60);
+            msleep(500L);
+            turn(1,5);
+            stop();
+           
+           // dumping_time();           
+            msleep(750L);
+            beep();
+            beep();
+            beep();
+            TRIGGER=0;
+        }
+    }
+}

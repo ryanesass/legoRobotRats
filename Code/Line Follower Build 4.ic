@@ -1,0 +1,397 @@
+//LINE FOLLOWER ROBOT 
+//ME 170C Team 8
+//Ryan Sass
+//Rusty Harrington
+
+/*////CURRENT ROBOT NOTES
+
+
+!!!!ROBOT TURNS LEFT FIRST!!!!!
+This code has been untested. It combines build 3a, the SLOW edge line follower, and build 2, the LESS SLOW pong line 
+follower. They have been calibrated based on three sections: 1st is 1st turn section. 2nd is the straight section. 
+3rd is the 2nd turn section, which includes the wall it will run into, and hopefully repeat the event to the other side.
+This program should complete the line follower in a decent amount of time.
+
+
+*/
+
+//GOLBAL VARIABLES
+#define DEBUG 1;
+int SPEED1=70, SPEED2=-80, backtime=500, btw=187, avegval=3;
+int OSPEED1=SPEED1, OSPEED2=SPEED2;
+float LAMEPER=-0.30;
+
+/*********************************************ROBOT MOTION FUNCTIONS*************************************************/
+//BACKWARD FUNCTION
+int backward(){
+    int a=8;
+    reset();
+    #ifdef DEBUG
+      printf("Reversing\n");
+    #endif
+    yip(1, -1 * OSPEED1);
+    yip(2, -1 * OSPEED2);
+    while(read_encoder(1)<a){
+        if (stop_button()){
+            stop();
+            return 0;
+        }
+    }
+    return 1;
+}
+//CHANGE TURNING DIRECTION
+void reverse(){
+    if(abs(SPEED1)>abs(SPEED2)){
+        SPEED1=(int)(LAMEPER * (float)OSPEED1);
+        SPEED2=OSPEED2;
+        yip(1,SPEED1);
+        yip(2,SPEED2);
+    }
+    else{
+        SPEED2=(int)(LAMEPER * (float)OSPEED2);
+        SPEED1=OSPEED1;
+        yip(1,SPEED1);
+        yip(2,SPEED2);
+    }     
+    msleep(100L);
+    return;
+}
+//LEFT TURN FUNCTION
+int turnL()
+{
+    SPEED1=(int)(0.25 * (float)OSPEED1);
+    SPEED2=OSPEED2;
+    printf("Turning Left\n");
+    yip(1, SPEED1);
+    yip(2, SPEED2);
+    while(aveg()<btw){
+        msleep(200L);
+        if (stop_button()){
+            stop();
+            return 0;
+        }
+    }
+    while(aveg()>=btw){
+        msleep(200L);
+        if (stop_button()){
+            stop();
+            return 0;
+        }
+    }
+    return 1;
+}
+//RIGHT TURN FUNCTION
+int turnR()
+{
+    SPEED2=(int)(0.25 * (float)OSPEED2);
+    SPEED1=OSPEED1;
+    printf("Turning Right\n");
+    yip(2, SPEED2);
+    yip(1, SPEED1);   
+    while(aveg()<btw){
+        msleep(200L);
+    }
+    while(aveg()>=btw){
+        msleep(200L);
+        if (stop_button()){
+            stop();
+            return 0;
+        }
+    }
+    return 1;
+}
+//SWEEP FUNCTION
+int sweep(){
+    int a=0, sweeptime=600;
+    stop();
+    printf("Turning right to find line\n");
+    SPEED2=(int)(LAMEPER * (float)OSPEED2);
+    SPEED1=OSPEED1;
+    yip(1, SPEED1);
+    yip(2, SPEED2);
+    while(a<sweeptime){
+        a=a+1;
+        if (stop_button()){
+            stop();
+            return 0;          
+        }
+    }
+    stop();
+    return 1;
+}    
+//TURN AROUND FUNCTION
+int turnaround(){
+    int a=0;
+    stop();
+    a=backward();
+    if(a==0)
+      return 0;
+    a=oneeighty();
+    if(a==0)
+      return 0;
+    a=backward();
+    if(a==0)
+      return 0;
+    SPEED1=(int)(LAMEPER * (float)OSPEED1);
+    SPEED2=OSPEED2;
+    yip(1, SPEED1);
+    yip(2, SPEED2); 
+    return 1;
+}
+//180 FUNCTION
+int oneeighty(){
+    int a=0;
+    printf("Turning around\n");
+    yip(1, 70);
+    yip(2, 56);
+    while(analog(6)>=btw){
+    }   
+    while(analog(6)<btw){
+        if (stop_button()){
+            stop();
+            return 0;          
+        }
+    }
+    msleep(250L);
+    stop();
+    return 1;
+}
+//STOP FUNCTION
+void stop(){
+    #ifdef DEBUG
+      printf("All Motors Stopped\n");
+    #endif
+    alloff();
+}
+//MOTOR DRIVING FUNCTION
+void yip(int a, int b){
+    if(a == 1){
+        motor(0,b);
+        motor(1,b);
+    }
+    if(a == 2){
+        motor(2,b);
+        motor(3,b);
+    }
+}
+/*********************************************END ROBOT MOTION FUNCTIONS*********************************************/
+/*********************************************VALUE FUNCTIONS********************************************************/
+//AVERAGE ENCODER VALUE FUNCTION
+int aveg(){
+    int a, b=0, f=avegval;
+    int value[10];
+    float c;
+    for (a=0; a<f; a++){
+        value[a]=analog(6);
+        b=value[a]+b;
+    }
+    c=(float)(b/f);
+    return ((int)c);
+}
+//ABSOLUTE VALUE FUNCTION
+int abs(int a){
+    if (a>0)
+      return a;
+    else
+      return (a*-1);
+}
+//LINE THRESHOLD DETERMINATION
+int determine(int a){
+    if(a<btw)
+      return 0;
+    else
+      return 1;
+}
+/*********************************************END VALUE FUNCTIONS*****************************************************/
+/*********************************************MENU FUNCTIONS**********************************************************/
+//SELECTOR FUNCTION
+void selector(){
+    int data;
+    while(1){
+        printf("PLEASE CHOOSE SETTING:"); 
+        data=knob();
+        if(data==255 || data==0 || data==1)
+          printf("Leave\n");
+        else if(data>127)
+          printf("Back Time\n");
+        else
+        printf("Lame Wheel %\n");
+        msleep(700L);
+        if(digital(13))
+          break;
+    }
+    if(data==255 || data==0 || data==1)
+      return;
+    else{ 
+        if(knob()>127)//PROBLEM LINE
+          backuptime();
+        else
+          lamewheel();
+    }
+    return; 
+    msleep(1500L);
+}
+//BACK UP SETTING FUNCTION
+void backuptime(){
+    int speed;
+    while(1){
+        if (stop_button())
+          stop();
+        printf("PLEASE SET BACKTIME\n Default 5500:"); 
+        speed=((knob())*21);
+        printf("%d s\n",speed);
+        msleep(1000L);
+        if(digital(13)){
+            printf("\nBack Time Set!\n");
+            backtime=(knob()*21);
+            msleep(1000L);
+            return;
+        }
+    }
+}
+//LAME WHEEL SETTING FUNCTION
+void lamewheel(){
+    float speed;
+    while(1){
+        if (stop_button())
+          stop();
+        printf("PLEASE SET LAME %:"); 
+        speed=((float)knob())/255.0;
+        printf("%f s\n",speed);
+        msleep(1000L);
+        if(digital(13)){
+            printf("\nLame % Set!\n");
+            LAMEPER=((float)knob())/255.0;
+            msleep(1000L);
+            return;
+        }
+    }   
+}
+//DEBUG FUNCTION
+void debug(){
+    int data;
+    printf("Line Calibration\n");
+    msleep(2000L);
+    while(!digital(12)){
+        data=analog(6);    
+        printf("%d, thresh->%d\n",data, knob());
+        msleep(500L);
+    }
+    btw=knob();
+    printf("\nCalibration Set\n");
+    msleep(500L);
+    return;
+}
+/*********************************************END MENU FUNCTIONS*******************************************************/
+/*********************************************ROBOT ALGORITHIM FUNCTIONS***********************************************/
+//RUN 1ST FUNCTION
+int run1st(){
+    int data=1,newval,preval,count2=0;
+    reset();
+    SPEED1=(int)(LAMEPER * (float)OSPEED1);
+    SPEED2=OSPEED2;
+    yip(1, SPEED1);
+    yip(2, SPEED2);
+    preval=analog(6);
+    while(data){
+        printf("1: %d, 2: %d\n", SPEED1, SPEED2);
+        newval=analog(6);
+        if(determine(preval) != determine(newval))
+          reverse();                                          
+        count2=read_encoder(1);
+        if(count2>=67){
+            data=sweep();
+            return data;
+        }
+        if(digital(15) || digital(14))
+          data = turnaround();
+        if (stop_button()){
+            stop();               
+            return 0;
+        }
+        preval=newval;
+    }
+    return 1;
+}
+//RUN 2ND FUNCTION
+int run2nd(){
+    int data=1, count2=0;
+    reset();
+    while(data){   
+        printf("1: %d, 2: %d\n", SPEED1, SPEED2);
+        data=turnL();
+        data=turnR();
+        count2=read_encoder(1);
+        if(count2>=105){
+            data=sweep();
+            return data;
+        }
+        if (stop_button()){
+            stop();               
+            return 0;
+        }
+    }
+    return 1;
+}
+//RUN 3RD FUNCTION
+int run3rd(){
+    int data=1,newval,preval;
+    SPEED1=(int)(LAMEPER * (float)OSPEED1);
+    SPEED2=OSPEED2;
+    yip(1, SPEED1);
+    yip(2, SPEED2);
+    preval=analog(6);
+    while(data){        
+        printf("1: %d, 2: %d\n", SPEED1, SPEED2);
+        newval=analog(6);
+        if(determine(preval) != determine(newval))
+          reverse();                                          
+        if(digital(15) || digital(14)){
+            data = turnaround();
+            return data;
+        }        
+        if (stop_button()){
+            stop();               
+            return 0;
+        }
+        preval=newval;
+    }
+    return 1;
+}
+//RESETTING FUNCTIONS
+void reset(){
+    reset_encoder(0);
+    reset_encoder(1);
+}
+/*********************************************END ROBOT ALGORITHIM FUNCTIONS********************************************/
+//MAIN FUNCTION
+void main(){
+    int go = 0;
+    enable_encoder(0);
+    enable_encoder(1);
+    reset();
+    while (1){
+        if (start_button())
+          go = 1;
+        if(digital(13))
+          selector();
+        if(digital(12))
+          debug();
+        if (!go){
+            #ifdef DEBUG
+              printf("LINE FOLLOWER BUILD 4\n");
+            #endif
+            msleep(250L);
+        }
+        if (go){
+            while(go){                            
+                go=run1st();
+                go=run2nd();
+                go=run3rd();
+            }
+        }
+        SPEED1=70;
+        SPEED2=-80;
+    }
+}
+//MAIN FUNCTION END

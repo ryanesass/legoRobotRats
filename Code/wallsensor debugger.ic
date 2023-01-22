@@ -1,0 +1,7 @@
+void main(){
+    while(1){
+        printf("%d %d\n",analog(20), analog(19));
+        msleep(500L);
+        
+    }
+}

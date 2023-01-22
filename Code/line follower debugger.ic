@@ -1,0 +1,10 @@
+   void main(){
+    int data1,data2;
+    while(1){
+        data1=analog(5);
+        data2=analog(6);
+        printf("%d %d\n",data1, data2);
+        msleep(500L);
+    }
+    return;
+}

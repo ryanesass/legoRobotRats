@@ -1,0 +1,202 @@
+int trigger=0,dist=60,CENTER=0,datax=0,datay=0;
+int speed=45, ecount=0;
+float perl=0.4, perr=0.6;
+//motor 1 is right
+//motor 2 is left 
+/*
+set up encoders!
+get functional light sensor
+get functional 2nd wall sensor
+set up light sensor!
+function turnl and r need to be fine tuned (use encoders)
+function forward needs to be written
+need to know distances to travel
+need to write dump_time()
+
+
+
+*/
+void rise(){
+    init_expbd_servos(1);
+    servo1=0;
+    set_digital_out(6);
+    msleep(1600L);
+    clear_digital_out(6);
+    servo1=3600;
+    msleep(1000L);
+    init_expbd_servos(0);
+    return;
+}
+void dump(){
+    init_expbd_servos(1);
+    servo0=2300;
+    msleep(1000L);
+    init_expbd_servos(0);
+}
+void killswitch(){
+    while (1){
+        if (digital(11)||digital(12)){
+            alloff();
+            trigger=0;
+        }
+    }
+}
+void forward(){
+    yip(1,speedr);
+    yip(2,speedl);
+}
+void stop(){
+    alloff();
+}
+void turnr(){
+    yip(1,-70);
+    yip(2,70);
+    msleep(1200L);
+    stop();
+}
+void turnl(){
+    yip(1,70);
+    yip(2,-70);
+    msleep(1200L);
+    stop();
+}
+/*void yip(int a, int b){
+    if(a == 1){//right motor
+        motor(0,b);
+        motor(1,(int)((float)b*0.3));
+    }
+    if(a == 2){//left motor
+        motor(2,b);
+        motor(3,b);
+    }
+}*/
+void yip(int a, int b){
+    if(a == 1){//right motor
+        motor(0,b);
+        motor(1,b);
+    }
+    if(a == 2){//left motor
+        motor(2,b);
+        motor(3,b);
+    }
+}
+void modulate(int speedl, int speedr){
+    int countl=read_encoder(0), countr=read_encoder(1);
+    float time=seconds(), espeedl, espeedr, error, Kp=0.05,P,gerror=(float)speedl/(float)speedr, ferror;
+    yip(2,speedl);
+    yip(1,speedr);
+    msleep(250L);
+    espeedl=((float)(read_encoder(0)-countl)/(seconds()-time));
+    espeedr=((float)(read_encoder(1)-countr)/(seconds()-time));
+    error=espeedl/espeedr;
+    ferror=error-gerror;
+    P=Kp*ferror;
+    yip(1,speedr+(int)((float)speedr*P));
+    
+      
+    
+}
+int abs(int a){
+    if (a>0)
+      return a;
+    else
+      return (a*-1);
+}
+void wallfollow(int countgoal){
+    int error, data=1, wall;
+    float P,Kp=0.5;
+    reset();
+    modulate(speed, speed);
+    while(trigger){
+        ecount=read_encoder(1);
+        error=dist-analog(20);
+        P=Kp*(float)error;
+        modulate(speed,(speed+(int)(P)));
+        modulate(speed,(speed-(int)(P)));          
+        if(ecount>=countgoal)
+          break;
+*/
+        printf("%d\n",ecount);
+        msleep(500L);
+        
+    }
+    return;
+}
+//RESETTING FUNCTIONS
+void reset(){
+    reset_encoder(0);
+    reset_encoder(1);
+    reset_system_time();
+    
+}
+void dumping_time(){
+    int trip=0;
+    //go forward
+    yip(1,60);    
+    yip(2,60);
+    //keep moving forward until you hit the wall
+    while(analog(2)<=100 || analog(2)>=60){
+        //this statement breaks the going forward command
+        if(analog(2)>100 || analog(2)<60){
+            trip=1;
+            break;
+        }
+        msleep(100L);        
+    }
+    msleep(2000L);
+    stop();
+    //stop and settle things
+    msleep(750L);
+    //if tripped sensor thingy, dump
+    if(trip){
+        init_expbd_servos(1);
+        servo0=2300;
+        msleep(1000L);
+        init_expbd_servos(0);
+    }
+    //back up from the wall
+    yip(1,-60);
+    yip(2,-60);
+    msleep(1000L);
+    turnr();
+}
+void main(){
+    start_process(killswitch());
+    init_expbd_servos(1);
+    servo0=2800;
+    servo1=0;
+    msleep(1500L);
+    init_expbd_servos(0);
+    enable_encoder(0);
+    enable_encoder(1);
+    while(1){
+        if(start_button()){
+            trigger=1;
+            //raise cheese swiper
+            rise();
+            //move follower into position x
+            //forward(x);
+            //turn robot towards wall to go
+            //turnr();
+            //follow wall to other side
+           // wallfollow(60);
+            //forward();
+            //turn to get to other wall
+            //turnr();
+            //move foward y towards wall
+            //forward(y);
+            //turn right to go down other side of wall
+            //turnr();
+            //wallfollow(60);
+            //turn right to get last cheese?
+            //turnr();
+            //move forward to get cheeze
+            //forward(z);
+            //turn left to head to home wall
+            //turnl();
+            //attempt to dump cheese
+           // dumping_time();
+            
+        }
+    }
+}

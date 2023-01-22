@@ -1,0 +1,169 @@
+//WALL FOLLOWER ROBOT 
+//ME 170C Team 8
+//Ryan Sass
+//Rusty Harrington
+
+//NOTES: NEED MORE RIGHT GAIN
+
+
+//GOLBAL VARIABLES
+#define DEBUG 1;//data x= left datay =right
+int SPEED1=0, SPEED2=-80, backtime=500, dist=60, olderror=0, avegval=3, datay=600,datax=600, lastval;
+int OSPEED1=0, OSPEED2=0, spe=45;
+//int LEFT=2600, RIGHT=800;
+int LEFT=2310, RIGHT=1710, CENTER=1900;
+float LAMEPER=0.0;
+
+/*********************************************ROBOT MOTION FUNCTIONS*************************************************/
+//STOP FUNCTION
+void stop(){
+    #ifdef DEBUG
+      printf("All Motors Stopped\n");
+    #endif
+    alloff();
+}
+//MOTOR DRIVING FUNCTION
+void yip(int a, int b){
+    if(a == 1){
+        motor(0,b);
+        motor(1,b);
+    }
+    if(a == 2){
+        motor(2,b);
+        motor(3,b);
+    }
+}
+//MOTOR RESTING FUNCTION
+void rest(int a){
+    yip(1,a);
+    yip(2,-a);
+    return;   
+}
+
+/*********************************************END ROBOT MOTION FUNCTIONS*********************************************/
+/*********************************************VALUE FUNCTIONS********************************************************/
+//ABSOLUTE VALUE FUNCTION
+int abs(int a){
+    if (a>0)
+      return a;
+    else
+      return (a*-1);
+}
+//DISTANCE DETERMINATION !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+int determine(int a){
+    int error, data=1, wall;
+    float P,D,Kp=0.04;
+    while(data){
+        a=analog(20);
+        error=dist-a;
+        P=Kp*(float)error;
+        if(P>0.0)//left
+          servo0=CENTER+(int)((float)datax*P);
+        else//right
+          servo0=CENTER+(int)((float)datay*P);
+        if(P<=Kp*(float)(dist-105)){
+            servo0=1550;
+            msleep(1000L);
+        }
+        if (stop_button()){
+            stop();               
+            return 0;
+        }
+        if(analog(2)>=81 || analog(2)<=73){
+            stop();
+            servo0=3000;
+            msleep(250L);           
+            rest(-spe);
+            msleep(800L);
+            stop();
+            servo0=450;
+            /*rest(35);
+            reset();
+            */msleep(250L);rest(35);reset();
+            while(read_encoder(1)<12 ){
+            }
+            servo0=CENTER;
+            rest(spe);
+        }
+    }
+    return 1;
+}
+
+/*********************************************END MENU FUNCTIONS*******************************************************/
+/*********************************************ROBOT ALGORITHIM FUNCTIONS***********************************************/
+//RUN 1ST FUNCTION
+int run1st(){
+    int data=1,newval,preval,count2=0;
+    reset();
+    servo0=CENTER;
+    rest(spe);    
+    preval=analog(20);
+    while(data){
+        /*while(!determine(analog(20))){
+            
+            if (stop_button()){
+                stop();
+                return 0;
+            }}
+        while(determine(analog(20))){
+            
+            if (stop_button()){
+                stop();
+                return 0;
+            }
+        }reverse();*/
+        determine(newval);
+        
+        /*if(determine(preval) != determine(newval))
+          reverse();   
+        printf("%d", servo0);
+        count2=read_encoder(1);
+        /*if(count2>=67){/*need new count
+            data=sweep();
+            return data;
+        }*/
+        if(digital(15))
+          data=0;
+        if (stop_button()){
+            stop();               
+            return 0;
+        }
+        preval=newval;
+    }
+    stop();//temp
+    return 1;
+}
+//RESETTING FUNCTIONS
+void reset(){
+    reset_encoder(1);
+    reset_system_time();
+    
+}
+/*********************************************END ROBOT ALGORITHIM FUNCTIONS********************************************/
+//MAIN FUNCTION
+void main(){
+    int go = 0;
+    init_expbd_servos(1);
+    enable_encoder(1);
+    servo0=1900;
+    reset();
+    while (1){
+        if (start_button())
+          go = 1;
+        if (!go){
+            #ifdef DEBUG
+              printf("WALL FOLLOWER BUILD 2A\n");
+            #endif
+            msleep(250L);
+        }
+        if (go){
+            while(go){                            
+                go=run1st();
+                //go=run2nd();
+                //go=run3rd();
+            }
+        }
+        servo0=1900;
+    }
+}
+//MAIN FUNCTION END

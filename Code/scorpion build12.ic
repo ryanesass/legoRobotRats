@@ -1,0 +1,247 @@
+int TRIGGER=0, SPEEDL=50, SPEEDR=50;
+//motor 1 is left
+//motor 2 is right 
+/*
+set up encoders!
+get functional light sensor
+get functional 2nd wall sensor
+set up light sensor!
+function turnl and r need to be fine tuned (use encoders)
+function forward needs to be written
+need to know distances to travel
+need to write dump_time()
+
+
+
+*/
+void rise(){
+    if(!TRIGGER)
+      return;
+    init_expbd_servos(1);
+    servo1=0;
+    set_digital_out(6);
+    msleep(1600L);
+    clear_digital_out(6);
+    if(!TRIGGER)
+      return;
+    servo1=3600;
+    msleep(1000L);
+    init_expbd_servos(0);
+    return;
+}
+void dump(){
+    if(!TRIGGER)
+      return;
+    init_expbd_servos(1);
+    servo0=2300;
+    msleep(1000L);
+    init_expbd_servos(0);
+}
+void killswitch(){
+    while (1){
+        if (digital(11)||digital(12)){
+            alloff();
+            clear_digital_out(6);
+            TRIGGER=0;
+        }
+    }
+}
+//void forward(){
+void forward(int countgoal){
+    int count=0;
+    if(!TRIGGER)
+      return;
+    reset();    
+    while(TRIGGER && (count<countgoal)){
+        count=read_encoder(1);        
+        /*if(analog(2)>90 || analog(2)<73)
+          break;*/
+        yip(1,SPEEDR);
+        yip(2,SPEEDL);
+    }
+    //    printf("%d\n",read_encoder(1));
+    if(!TRIGGER)
+      return;
+    stop();
+    
+}
+void stop(){
+    alloff();
+}
+void turnr(){
+    if(!TRIGGER)
+      return;
+    stop();
+    yip(1,70);
+    yip(2,-70);
+    msleep(1200L);
+    stop();
+}
+void turnl(){
+    yip(1,70);
+    yip(2,-70);
+    msleep(1200L);
+    stop();
+}
+/*void yip(int a, int b){
+    if(a == 1){//right motor
+        motor(0,b);
+        motor(1,(int)((float)b*0.3));
+    }
+    if(a == 2){//left motor
+        motor(2,b);
+        motor(3,b);
+    }
+}*/
+void yip(int a, int b){
+    if(a == 1){//right motor
+        motor(0,b);
+        motor(1,b);
+    }
+    if(a == 2){//left motor
+        motor(2,b);
+        motor(3,b);
+    }
+}   
+int abs(int a){
+    if (a>0)
+      return a;
+    else
+      return (a*-1);
+}
+void wallfollow(int countgoal,int side, int dist){
+    int error, data=1, wall, count;
+    float P,Kp=1.1;
+    if(!TRIGGER)
+      return;
+    reset();
+    yip(1,SPEEDL);
+    yip(2,SPEEDR);
+    msleep(250L);
+    while(TRIGGER){
+        count=read_encoder(1);
+        if(side)
+          error=dist-analog(20);
+        if(!side)
+          error=dist-analog(19);
+        P=Kp*(float)error;
+        yip(1,(SPEEDL-(int)(P)));
+        yip(2,(SPEEDR+(int)(P)));    
+        if(count>=countgoal)
+          break;
+        //       printf("%d\n",ecount);
+        
+        msleep(500L);
+        
+    }
+    return;
+}
+//RESETTING FUNCTIONS
+void reset(){
+    reset_encoder(0);
+    reset_encoder(1);
+    reset_system_time();
+    
+}
+void rest(){
+    if(!TRIGGER)
+      return;
+    alloff();
+    msleep(15000L);
+    
+}
+
+void dumping_time(int countgoal, int side, int dist){
+    int error, data=1, wall, trip=0, count=0;
+    float P,Kp=1.1;
+    if(!TRIGGER)
+      return;
+    reset();
+    yip(1,SPEEDL);
+    yip(2,SPEEDR);
+    msleep(250L);
+    while(TRIGGER){
+        count=read_encoder(1);
+        error=dist-analog(20);
+        P=Kp*(float)error;
+        yip(1,(SPEEDL-(int)(P)));
+        yip(2,(SPEEDR+(int)(P)));       
+        if(count>=countgoal)
+          break;
+        //       printf("%d\n",ecount);
+        msleep(500L);
+        
+    }
+    while(TRIGGER && !trip){
+        count=read_encoder(1);
+        error=dist-analog(20);
+        P=Kp*(float)error;
+        yip(1,(SPEEDL-(int)(P)));
+        yip(2,(SPEEDR+(int)(P)));   
+        /*        
+        if(ecount>=countgoal)
+          break;
+*/
+        msleep(500L);
+        if(analog(2)>100 || analog(2)<60){
+            trip=1;
+            break;
+        }
+        msleep(100L); 
+    }
+    msleep(2000L);
+    stop();
+    //stop and settle things
+    msleep(750L);
+    //if tripped sensor thingy, dump
+    if(trip){
+        init_expbd_servos(1);
+        servo0=2300;
+        msleep(1000L);
+        init_expbd_servos(0);
+        //back up from the wall
+        if(TRIGGER){
+            yip(1,-60);
+            yip(2,-60);
+            msleep(1000L);
+            turnr();
+        }
+    }
+}
+void main(){
+    start_process(killswitch());
+    init_expbd_servos(1);
+    servo0=2800;
+    servo1=0;
+    msleep(1500L);
+    init_expbd_servos(0);
+    enable_encoder(0);
+    enable_encoder(1);
+    while(1){
+        if(start_button() || (analog(22)<150))
+          TRIGGER=1;
+        while(TRIGGER){            
+            //raise cheese swiper
+            //rise();
+            //move follower into position x
+            forward(16);
+            //turn robot towards wall to go
+            turnr();
+            //follow wall to other side
+            wallfollow(120,0,60);
+            //rest();
+            //turn to get to other wall
+            //turnr();
+            //move foward y towards wall
+            //forward();
+            //rest();
+            //turn right to go down other side of wall
+            //turnr();
+            //dumping_time(120);
+            msleep(750L);
+            beep();
+            beep();
+            beep();            
+        }
+    }
+}
